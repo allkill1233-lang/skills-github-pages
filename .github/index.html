@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0b1220">
+<title>말소리 게임 — 자모 합치기 · 의미 단서 · 문장 따라말하기 (TTS+STT+진단)</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121a2b; --line:#1e2a44; --text:#e6eefc; --muted:#9ab0d0;
+    --btn:#18243d; --btnHi:#203255; --good:#15a374; --bad:#d44e4e;
+    --c-cho:#173a7a; --c-jung:#185a3a; --c-jong:#7a3a17;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0b1220,#0e1627);color:var(--text);
+       font-family:system-ui,-apple-system,Segoe UI,Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+  h1{font-size:20px;margin:0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .sp{flex:1}
+  .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--btn);color:var(--text);cursor:pointer;font-weight:600}
+  .btn.primary{background:var(--btnHi);border-color:#2a3b63}
+  .btn.good{background:#0f2b22;border-color:#18513f}
+  .btn.bad{background:#2b1517;border-color:#56343a}
+  .hide{display:none !important}
+  .muted{color:var(--muted);font-size:12px}
+  .badge{display:inline-block;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:#0c1832;font-size:12px}
+  .target{font-size:18px;padding:6px 10px;border-radius:10px;background:#0f1a34;border:1px solid var(--line);display:inline-block}
+  .display{min-height:48px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;background:#0b1326;font-size:24px;letter-spacing:.5px}
+  .grid{display:grid;gap:8px}
+  .grid.jamo{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .chip{padding:10px 8px;text-align:center;border:1px solid var(--line);border-radius:10px;background:#0f1830;cursor:pointer;user-select:none;transition:transform .05s ease, filter .15s}
+  .chip:active{transform:translateY(1px)}
+  .chip.cho{background:linear-gradient(180deg,#0e1b38,#132b57); border-color:#1f3a70}
+  .chip.jung{background:linear-gradient(180deg,#0e2a1f,#154431); border-color:#185a3a}
+  .chip.jong{background:linear-gradient(180deg,#2d170e,#4a2a18); border-color:#7a3a17}
+  input[type="text"]{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0c1428;color:var(--text);font-size:16px}
+  .chatbox{display:flex;gap:8px;align-items:center}
+  .chatbox input{flex:1}
+  .toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#10233f;border:1px solid var(--line);color:#fff;padding:10px 14px;border-radius:12px;z-index:9999;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  .center-pop{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.35); z-index:10000}
+  .center-pop.show{ display:flex; }
+  .center-pop .panel{background:linear-gradient(180deg,#0f1a34,#142347); border:1px solid #2a3b63; border-radius:16px; padding:20px 22px; min-width:240px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,.35); animation:pop .18s ease-out}
+  .center-pop .title{font-size:22px; font-weight:800; margin:0 0 6px}
+  .center-pop .msg{font-size:14px; color:#9ab0d0; margin:0 0 10px}
+  .center-pop .x{position:absolute; right:10px; top:10px; background:transparent; border:none; color:#9ab0d0; font-size:18px; cursor:pointer}
+  @keyframes pop{from{transform:scale(.96); opacity:.6} to{transform:scale(1); opacity:1}}
+  @media (max-width:560px){ .grid.jamo{grid-template-columns:repeat(6,minmax(0,1fr))} .display{font-size:22px} }
+  .kbd{display:inline-block;padding:0 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:#0c1832; font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>말소리 게임 <span class="badge">자모 합치기 · 의미 단서 · 문장 따라말하기</span></h1>
+    <div class="row">
+      <button id="btnHome" class="btn" type="button" aria-controls="home">처음으로</button>
+    </div>
+  </header>
+
+  <!-- 홈 -->
+  <section id="home" class="card" aria-label="홈">
+    <p class="muted">모드를 선택하세요.</p>
+    <div class="row" style="margin-top:8px">
+      <button id="goCompose" class="btn primary" type="button" aria-controls="compose">① 자모 합치기</button>
+      <button id="goClue" class="btn primary" type="button" aria-controls="clue">② 의미 단서</button>
+      <button id="goRepeat" class="btn primary" type="button" aria-controls="repeat">③ 문장 따라말하기</button>
+    </div>
+    <p class="muted" style="margin-top:8px">TTS/마이크는 브라우저 권한 허용이 필요합니다.</p>
+  </section>
+
+  <!-- ① 자모 합치기 -->
+  <section id="compose" class="card hide" aria-live="polite">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div class="row" style="gap:10px;align-items:center">
+        <span class="muted">예시 단어</span>
+        <span class="target" id="composeWord">숟가락</span>
+      </div>
+      <div class="row muted">
+        <span>라운드 <b id="cRound">1</b></span>
+        <span>· 점수 <b id="cScore">0</b></span>
+      </div>
+    </div>
+
+    <div style="height:10px"></div>
+    <div class="display" id="composeDisplay" aria-label="현재 만든 단어"></div>
+    <div class="muted" style="margin:6px 2px">
+      초성 → 중성 → (선택) 종성 순서로 선택. 새 <b>초성</b>을 누르면 이전 음절이 자동 확정됩니다.
+    </div>
+
+    <div class="row" style="margin:10px 0">
+      <button class="btn" id="btnUndoChar" type="button"><span class="kbd">⌫</span> 한 글자 지우기</button>
+      <button class="btn" id="btnBackJamo" type="button"><span class="kbd">←</span> 자모 되돌리기</button>
+      <button class="btn good" id="btnCommit" type="button"><span class="kbd">↵</span> 글자 추가</button>
+      <button class="btn bad" id="btnClear" type="button">단어 지우기</button>
+      <button class="btn primary" id="btnCheckCompose" type="button">정답 확인</button>
+      <button class="btn" id="btnNextCompose" type="button">다음 예시</button>
+      <span class="sp"></span>
+      <!-- TTS -->
+      <button class="btn" id="btnSpeakTarget" type="button">예시 단어 읽기 🔊</button>
+      <button class="btn" id="btnSpeakCurrent" type="button">현재 단어 읽기 🔊</button>
+      <button class="btn bad" id="btnSpeakStop" type="button">읽기 중지 ⏹</button>
+    </div>
+
+    <div style="height:6px"></div>
+    <div class="muted">초성 후보</div>
+    <div class="grid jamo" id="padCho"></div>
+    <div class="muted" style="margin-top:8px">중성 후보</div>
+    <div class="grid jamo" id="padJung"></div>
+    <div class="muted" style="margin-top:8px">종성 후보</div>
+    <div class="grid jamo" id="padJong"></div>
+  </section>
+
+  <!-- ② 의미 단서 -->
+  <section id="clue" class="card hide" aria-live="polite">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div class="row" style="gap:10px;align-items:center">
+        <span class="muted">단서</span>
+        <span class="target" id="clueText">밥이나 반찬을 떠서 먹는 데 쓰는 길쭉한 식기예요.</span>
+      </div>
+      <div class="row muted">
+        <span>라운드 <b id="qRound">1</b></span>
+        <span>· 점수 <b id="qScore">0</b></span>
+        <span>· 남은시도 <b id="qTry">3</b></span>
+      </div>
+    </div>
+
+    <div style="height:12px"></div>
+    <div class="row">
+      <button class="btn" id="btnHintFirstSyllable" type="button">힌트(첫음절)</button>
+      <button class="btn" id="btnSpeakClue" type="button">단서 읽기 🔊</button>
+      <button class="btn bad" id="btnSpeakStop2" type="button">읽기 중지 ⏹</button>
+    </div>
+    <div style="height:8px"></div>
+
+    <div class="chatbox">
+      <input id="answerInput" type="text" placeholder="정답을 입력하세요 (예: 숟가락)" autocomplete="off" aria-label="정답 입력">
+      <button class="btn primary" id="btnSubmitAnswer" type="button">보내기</button>
+    </div>
+    <div style="height:8px"></div>
+    <div id="feedback" class="muted" aria-live="polite"></div>
+
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="btnNextClue" type="button">다음 문제</button>
+    </div>
+  </section>
+
+  <!-- ③ 문장 따라말하기 (TTS + STT + 진단) -->
+  <section id="repeat" class="card hide" aria-live="polite">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div class="row" style="gap:10px;align-items:center">
+        <span class="muted">문장</span>
+        <span class="target" id="repeatText">나는 오늘 맛있는 김밥을 먹었어요.</span>
+      </div>
+      <div class="row muted">
+        <span>라운드 <b id="rRound">1</b></span>
+        <span>· 점수 <b id="rScore">0</b></span>
+      </div>
+    </div>
+
+    <div style="height:10px"></div>
+    <div class="row" style="margin:8px 0">
+      <button class="btn" id="btnSpeakRepeat" type="button">문장 들려주기 🔊</button>
+      <button class="btn good" id="btnStartSTT" type="button">녹음 시작 🎤</button>
+      <button class="btn bad" id="btnStopSTT" type="button">중지 ⏹</button>
+      <button class="btn" id="btnNextRepeat" type="button">다음 문장</button>
+      <button class="btn" id="btnMicTest" type="button">마이크 테스트(권한요청)</button>
+      <button class="btn" id="btnListSupport" type="button">지원상태 확인</button>
+    </div>
+
+    <div class="card" style="margin-top:8px">
+      <div class="muted">전사 결과</div>
+      <div class="display" id="sttLive" style="min-height:36px;font-size:18px"></div>
+      <div class="muted" style="margin-top:6px">최종</div>
+      <div class="display" id="sttFinal" style="min-height:36px;font-size:20px"></div>
+      <div id="matchInfo" class="muted" style="margin-top:6px"></div>
+      <div id="sttDiag" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <div class="row" style="margin-top:8px; align-items:center; gap:10px">
+      <label class="muted"><input type="checkbox" id="fallbackTyping"> STT 미지원/권한거부 시 텍스트 대체 입력 사용</label>
+      <input id="fallbackInput" class="hide" type="text" placeholder="여기에 들은 문장을 적어보세요">
+      <button class="btn hide" id="fallbackCheck" type="button">대체 채점</button>
+    </div>
+
+    <p class="muted" style="margin-top:8px">
+      팁: Chrome/Edge 최신버전, HTTPS(또는 localhost) 환경에서 권한 허용 후 사용하세요.
+    </p>
+  </section>
+</div>
+
+<!-- 중앙 정답 팝업 -->
+<div id="centerPop" class="center-pop" role="dialog" aria-modal="true" aria-labelledby="centerPopTitle" aria-describedby="centerPopMsg">
+  <div class="panel">
+    <button class="x" id="centerPopClose" aria-label="닫기">×</button>
+    <h2 class="title" id="centerPopTitle">정답입니다!</h2>
+    <p class="msg" id="centerPopMsg">아주 잘했어요 👏</p>
+    <div class="row" style="justify-content:center;margin-top:6px">
+      <button class="btn good" id="centerPopOk" type="button">확인</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===========================
+   데이터셋
+=========================== */
+const BANK = [
+  ["숟가락","밥이나 반찬을 떠서 먹는 데 쓰는 길쭉한 식기예요."],
+  ["접시","음식을 담아 내는 평평한 그릇이에요."],
+  ["국자","국이나 수프를 퍼낼 때 쓰는 도구예요."],
+  ["냄비","물을 끓이거나 음식을 끓일 때 쓰는 그릇이에요."],
+  ["가방","책이나 물건을 넣어 들고 다녀요."]
+];
+
+const SENT_BANK = [
+  "나는 오늘 맛있는 김밥을 먹었어요.",
+  "비가 와서 우산을 쓰고 학교에 갔어요.",
+  "친구와 함께 놀이터에서 그네를 탔어요.",
+  "엄마가 만든 따뜻한 국이 정말 맛있었어요.",
+  "우리 반은 내일 소풍을 떠나요."
+];
+
+/* ===========================
+   공용 유틸/상태
+=========================== */
+const $ = id => document.getElementById(id);
+function toast(msg, ok){
+  const el=document.createElement('div'); el.className='toast'; el.textContent=msg;
+  el.style.background = ok ? '#103a2e' : '#3a1a1a';
+  document.body.appendChild(el); setTimeout(()=>el.remove(), 1500);
+}
+function show(which){
+  ['home','compose','clue','repeat'].forEach(id=>$(id).classList.add('hide'));
+  $(which).classList.remove('hide');
+}
+function pickWordIdx(){ return Math.floor(Math.random()*BANK.length); }
+function pickSentIdx(){ return Math.floor(Math.random()*SENT_BANK.length); }
+
+/* ===========================
+   중앙 정답 팝업
+=========================== */
+let popTimer=null;
+function showCenterPop(title="정답입니다!", msg="아주 잘했어요 👏"){
+  clearTimeout(popTimer);
+  $('centerPopTitle').textContent = title;
+  $('centerPopMsg').textContent = msg;
+  $('centerPop').classList.add('show');
+  popTimer = setTimeout(hideCenterPop, 1600);
+  $('centerPopOk').focus();
+}
+function hideCenterPop(){
+  $('centerPop').classList.remove('show');
+  clearTimeout(popTimer);
+}
+$('centerPopClose').onclick = hideCenterPop;
+$('centerPopOk').onclick = hideCenterPop;
+$('centerPop').addEventListener('click', (e)=>{ if(e.target===e.currentTarget) hideCenterPop(); });
+
+/* ===========================
+   한글 조합/분해
+=========================== */
+const CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+const JUNG= ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
+const JONG= ["(없음)","ㄱ","ㄲ","ㄳ","ㄴ","ㄵ","ㄶ","ㄷ","ㄹ","ㄺ","ㄻ","ㄼ","ㄽ","ㄾ","ㄿ","ㅀ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+function composeSyllable(ch, ju, jo=0){ const uni=0xac00+((ch*21)+ju)*28+jo; return String.fromCharCode(uni); }
+function decomposeSyllable(syl){
+  const code = syl.charCodeAt(0);
+  const si = code - 0xac00;
+  const cho = Math.floor(si / (21*28));
+  const jung = Math.floor((si % (21*28))/28);
+  const jong = si % 28;
+  return {cho, jung, jong};
+}
+
+/* ===========================
+   자모 팔레트 생성
+=========================== */
+function unique(arr){ return Array.from(new Set(arr)); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function makeJamoPalette(word){
+  const needCho=[], needJung=[], needJong=[0];
+  for(const ch of word){
+    if(ch<"\uAC00" || ch>"\uD7A3") continue;
+    const {cho,jung,jong} = decomposeSyllable(ch);
+    needCho.push(cho); needJung.push(jung); if(jong>0) needJong.push(jong);
+  }
+  const uCho = unique(needCho), uJung = unique(needJung), uJong = unique(needJong);
+  function withDistractors(u, full, targetSize){
+    const have = new Set(u);
+    const pool = full.map((_,i)=>i).filter(i=>!have.has(i));
+    shuffle(pool);
+    const need = Math.max(0, targetSize - u.length);
+    return shuffle([...u, ...pool.slice(0, need)]);
+  }
+  const choList = withDistractors(uCho, CHO, Math.min(14, Math.max(8, uCho.length+6)));
+  const jungList= withDistractors(uJung, JUNG, Math.min(14, Math.max(8, uJung.length+6)));
+  const jongList= withDistractors(uJong, JONG, Math.min(12, Math.max(6, uJong.length+4)));
+  return { choList, jungList, jongList };
+}
+
+/* ===========================
+   ① 자모 합치기
+=========================== */
+let composeRound=1, composeScore=0, composeIdx=0;
+let curWord='', pending={cho:null, jung:null, jong:null};
+
+function autoFinalizePending(){
+  if(pending.cho !== null && pending.jung !== null){
+    const jo = (typeof pending.jong === 'number') ? pending.jong : 0;
+    const syl = composeSyllable(pending.cho, pending.jung, jo);
+    curWord += syl;
+    pending = { cho:null, jung:null, jong:null };
+  }
+  updateComposeDisplay();
+}
+
+function renderComposePads(word){
+  const { choList, jungList, jongList } = makeJamoPalette(word);
+  ['padCho','padJung','padJong'].forEach(id=>$(id).innerHTML='');
+
+  choList.forEach(i=>{
+    const b=document.createElement('button');
+    b.className='chip cho';
+    b.textContent=CHO[i];
+    b.onclick=()=>{ autoFinalizePending(); pending.cho=i; pending.jung=null; pending.jong=null; updateComposeDisplay(); };
+    $('padCho').appendChild(b);
+  });
+
+  jungList.forEach(i=>{
+    const b=document.createElement('button');
+    b.className='chip jung';
+    b.textContent=JUNG[i];
+    b.onclick=()=>{ if(pending.cho===null){ toast('먼저 초성을 고르세요'); return; } pending.jung=i; updateComposeDisplay(); };
+    $('padJung').appendChild(b);
+  });
+
+  jongList.forEach(i=>{
+    const b=document.createElement('button');
+    b.className='chip jong';
+    b.textContent = i===0 ? '받침 없음' : JONG[i];
+    b.onclick=()=>{ if(pending.cho===null || pending.jung===null){ toast('초성→중성부터'); return; } pending.jong=i; updateComposeDisplay(); };
+    $('padJong').appendChild(b);
+  });
+}
+
+function startCompose(reset=false){
+  if(reset){ composeRound=1; composeScore=0; }
+  composeIdx = pickWordIdx();
+  const [word] = BANK[composeIdx];
+  $('composeWord').textContent = word;
+  $('cRound').textContent = composeRound;
+  $('cScore').textContent = composeScore;
+  curWord=''; pending={cho:null,jung:null,jong:null};
+  $('composeDisplay').textContent='';
+  renderComposePads(word);
+}
+
+function updateComposeDisplay(){
+  let tmp = '';
+  if(pending.cho !== null && pending.jung !== null){
+    const jo = (typeof pending.jong === 'number') ? pending.jong : 0;
+    tmp = composeSyllable(pending.cho, pending.jung, jo);
+  }
+  $('composeDisplay').textContent = curWord + tmp;
+}
+
+$('btnCommit').onclick = (e)=>{ e.preventDefault(); if(pending.cho===null || pending.jung===null){ toast('초성과 중성을 먼저 선택', false); return; } autoFinalizePending(); };
+$('btnUndoChar').onclick = (e)=>{ e.preventDefault(); if(curWord.length>0){ curWord=curWord.slice(0,-1); } else toast('지울 글자가 없어요'); updateComposeDisplay(); };
+$('btnBackJamo').onclick = (e)=>{ e.preventDefault(); if(pending.jong!=null){ pending.jong=null; } else if(pending.jung!=null){ pending.jung=null; } else if(pending.cho!=null){ pending.cho=null; } else { toast('되돌릴 자모가 없어요'); } updateComposeDisplay(); };
+$('btnClear').onclick = (e)=>{ e.preventDefault(); curWord=''; pending={cho:null,jung:null,jong:null}; updateComposeDisplay(); };
+
+$('btnCheckCompose').onclick = (e)=>{
+  e.preventDefault();
+  autoFinalizePending();
+  const answer = curWord;
+  const correct = BANK[composeIdx][0];
+  if(!answer){ toast('단어를 만들어 보세요'); return; }
+  if(answer===correct){
+    composeScore+=10; composeRound+=1;
+    $('cScore').textContent = composeScore; $('cRound').textContent = composeRound;
+    showCenterPop("정답입니다!", "훌륭해요 🎉");
+    startCompose(false);
+  }else{
+    toast('아쉬워요! 다시 시도해 보세요', false);
+  }
+};
+$('btnNextCompose').onclick = (e)=>{ e.preventDefault(); composeRound+=1; startCompose(false); };
+
+/* ===========================
+   ② 의미 단서
+=========================== */
+let clueRound=1, clueScore=0, clueIdx=0, clueTry=3;
+
+function startClue(reset=false){
+  if(reset){ clueRound=1; clueScore=0; }
+  clueIdx = pickWordIdx();
+  const [,clue] = BANK[clueIdx];
+  $('clueText').textContent = clue; $('qRound').textContent = clueRound; $('qScore').textContent = clueScore;
+  clueTry=3; $('qTry').textContent = clueTry;
+  $('feedback').textContent=''; $('answerInput').value='';
+}
+
+$('btnHintFirstSyllable').onclick = (e)=>{
+  e.preventDefault();
+  const word = BANK[clueIdx][0];
+  if(!word || word.length===0) return;
+  const first = word[0];
+  toast(`첫음절 힌트: ${first}`, true);
+};
+
+$('btnSubmitAnswer').onclick = (e)=>{
+  e.preventDefault();
+  const user = $('answerInput').value.trim();
+  const correct = BANK[clueIdx][0];
+  if(!user){ toast('정답을 입력해 주세요'); return; }
+  if(user===correct){
+    clueScore+=10; clueRound+=1;
+    $('qScore').textContent=clueScore; $('qRound').textContent=clueRound;
+    $('feedback').textContent='정답! 잘했어요 🎉';
+    showCenterPop("정답입니다!", "아주 잘했어요 👏");
+    startClue(false);
+  }else{
+    clueTry-=1; $('qTry').textContent=clueTry;
+    if(clueTry<=0){
+      $('feedback').textContent='다음 문제로 넘어가요.';
+      startClue(false);
+    }else{
+      $('feedback').textContent=`아쉬워요. 다시 시도해 보세요. (남은 시도: ${clueTry})`;
+    }
+  }
+};
+$('btnNextClue').onclick = (e)=>{ e.preventDefault(); clueRound+=1; startClue(false); };
+
+/* ===========================
+   ③ 문장 따라말하기 (TTS + STT + 진단)
+=========================== */
+let repeatRound=1, repeatScore=0, repeatIdx=0;
+function startRepeat(reset=false){
+  if(reset){ repeatRound=1; repeatScore=0; }
+  repeatIdx = pickSentIdx();
+  $('repeatText').textContent = SENT_BANK[repeatIdx];
+  $('rRound').textContent = repeatRound;
+  $('rScore').textContent = repeatScore;
+  $('sttLive').textContent = '';
+  $('sttFinal').textContent = '';
+  $('matchInfo').textContent = '';
+  $('sttDiag').textContent = '';
+}
+
+/* ===== TTS ===== */
+const synth = window.speechSynthesis;
+let koVoice = null;
+function pickKoVoice(){
+  const voices = synth.getVoices();
+  koVoice = voices.find(v => (v.lang && v.lang.toLowerCase().startsWith('ko')) ||
+                             (v.name && /korean|ko-kr/i.test(v.name))) || null;
+}
+pickKoVoice();
+if (typeof speechSynthesis !== 'undefined') {
+  speechSynthesis.onvoiceschanged = pickKoVoice;
+}
+function speak(text){
+  if(!text) return;
+  try { synth.cancel(); } catch(e){}
+  const u = new SpeechSynthesisUtterance(text);
+  if(koVoice){ u.voice = koVoice; u.lang = koVoice.lang || 'ko-KR'; }
+  else { u.lang = 'ko-KR'; }
+  u.rate = 1; u.pitch = 1;
+  synth.speak(u);
+}
+function stopSpeak(){ try { synth.cancel(); } catch(e){} }
+
+/* ===== STT 진단/권한요청 ===== */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const sttDiag = $('sttDiag');
+
+function logDiag(msg, ok=false){
+  sttDiag.innerHTML = (ok? '✅ ' : '⚠️ ') + msg;
+}
+function isSecureOrigin(){
+  return location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+}
+async function micPermissionTest(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    logDiag('이 브라우저는 getUserMedia를 지원하지 않아요. Chrome/Edge 최신 버전을 사용해 주세요.');
+    return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    logDiag('마이크 권한 OK. 이제 녹음 시작을 눌러 보세요.', true);
+    setTimeout(()=> stream.getTracks().forEach(t=>t.stop()), 500);
+  }catch(err){
+    logDiag('마이크 권한 실패: ' + (err.name || err.message));
+  }
+}
+function checkSupport(){
+  const items = [];
+  items.push(`브라우저: ${navigator.userAgent}`);
+  items.push(`Secure Origin(https/localhost): ${isSecureOrigin() ? '예' : '아니오'}`);
+  items.push(`SpeechRecognition: ${SpeechRecognition ? '지원' : '미지원'}`);
+  items.push(`getUserMedia: ${navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? '지원' : '미지원'}`);
+  logDiag(items.join(' | '), SpeechRecognition && isSecureOrigin());
+}
+
+/* ===== STT 초기화/오류 처리 ===== */
+let rec = null;
+let listening = false;
+
+function ensureRecognizer(){
+  if(!isSecureOrigin()){
+    logDiag('HTTPS(또는 localhost)에서만 마이크가 동작합니다. 사이트를 https로 열어 주세요.');
+    return null;
+  }
+  if(!SpeechRecognition){
+    logDiag('이 브라우저에서는 음성 인식이 지원되지 않아요. Chrome/Edge를 사용해 주세요.');
+    return null;
+  }
+  if(rec) return rec;
+
+  rec = new SpeechRecognition();
+  rec.lang = "ko-KR";
+  rec.interimResults = true;
+  rec.continuous = true;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = ()=>{ listening = true; toast('녹음 시작 🎤', true); logDiag('녹음 중... 🎤', true); };
+  rec.onend   = ()=>{ listening = false; toast('녹음 종료', false); };
+  rec.onerror = (e)=>{
+    const code = e.error || 'unknown';
+    let hint = '';
+    if(code === 'not-allowed') hint = '권한이 거부됐습니다. 주소창 ▶ 마이크 ▶ 허용을 켜세요.';
+    if(code === 'no-speech') hint = '음성이 감지되지 않았어요. 마이크/소음 환경을 확인하세요.';
+    if(code === 'audio-capture') hint = '마이크 장치를 찾을 수 없습니다. Windows 입력 장치/케이블을 확인하세요.';
+    if(code === 'aborted') hint = '다른 앱이 마이크를 사용 중일 수 있어요. 회의 앱 종료 후 재시도.';
+    if(code === 'network') hint = '네트워크 문제입니다. 인터넷 연결 확인.';
+    logDiag(`STT 오류: ${code}. ${hint}`);
+  };
+
+  rec.onresult = (e)=>{
+    let interim = '';
+    let finalTxt = $('sttFinal').textContent || '';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res = e.results[i];
+      if(res.isFinal){
+        finalTxt += (finalTxt && !finalTxt.endsWith(' ')? ' ':'') + res[0].transcript.trim();
+      }else{
+        interim = res[0].transcript;
+      }
+    }
+    $('sttLive').textContent = interim;
+    $('sttFinal').textContent = finalTxt.trim();
+    updateMatchInfo();
+  };
+
+  return rec;
+}
+function startSTT(){
+  const r = ensureRecognizer();
+  if(!r) return;
+  try{
+    if(listening){ r.stop(); }
+    r.start();
+  }catch(err){
+    logDiag('r.start() 실패: ' + (err.message || err));
+    toast('마이크 권한/HTTPS/브라우저를 확인해 주세요', false);
+  }
+}
+function stopSTT(){ if(rec && listening){ rec.stop(); } }
+
+/* ===== 일치도 계산 ===== */
+function normalizeK(text){
+  return (text||'').toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu,'')
+    .replace(/\s+/g,'')
+    .trim();
+}
+function lcs(a,b){
+  const m=a.length,n=b.length; const dp=Array(m+1).fill(0).map(()=>Array(n+1).fill(0));
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+    dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
+  return dp[m][n];
+}
+function updateMatchInfo(){
+  const target = normalizeK($('repeatText').textContent);
+  const said = normalizeK($('sttFinal').textContent);
+  if(!target || !said){ $('matchInfo').textContent=''; return; }
+  const common = lcs(target, said);
+  const p = Math.round((common/target.length)*100);
+  $('matchInfo').textContent = `일치도(참고): ${p}%`;
+  if(p>=80){
+    repeatScore += 10;
+    $('rScore').textContent = repeatScore;
+    showCenterPop('잘 따라했어요!', '아주 좋아요 👏');
+  }
+}
+
+/* ===== STT 대체 입력 ===== */
+$('fallbackTyping').addEventListener('change', (e)=>{
+  const on = e.target.checked;
+  $('fallbackInput').classList.toggle('hide', !on);
+  $('fallbackCheck').classList.toggle('hide', !on);
+});
+$('fallbackCheck').addEventListener('click', ()=>{
+  const typed = $('fallbackInput').value.trim();
+  if(!typed){ toast('문장을 입력해 주세요'); return; }
+  $('sttFinal').textContent = typed;
+  updateMatchInfo();
+});
+
+/* ===========================
+   네비게이션/버튼
+=========================== */
+$('btnHome').addEventListener('click', (e)=>{ e.preventDefault(); show('home'); stopSTT(); stopSpeak(); });
+$('goCompose').addEventListener('click', (e)=>{ e.preventDefault(); startCompose(true); show('compose'); stopSTT(); stopSpeak(); });
+$('goClue').addEventListener('click', (e)=>{ e.preventDefault(); startClue(true); show('clue'); stopSTT(); stopSpeak(); });
+$('goRepeat').addEventListener('click', (e)=>{ e.preventDefault(); startRepeat(true); show('repeat'); stopSTT(); stopSpeak(); });
+
+/* 자모/의미단서/문장 TTS */
+$('btnSpeakTarget').onclick = ()=> speak($('composeWord').textContent.trim());
+$('btnSpeakCurrent').onclick = ()=> speak(($('composeDisplay').textContent || '').trim());
+$('btnSpeakStop').onclick = stopSpeak;
+$('btnSpeakClue').onclick = ()=> speak($('clueText').textContent.trim());
+$('btnSpeakStop2').onclick = stopSpeak;
+$('btnSpeakRepeat').onclick = ()=> speak($('repeatText').textContent.trim());
+
+/* STT 컨트롤 */
+$('btnStartSTT').onclick = startSTT;
+$('btnStopSTT').onclick = stopSTT;
+$('btnNextRepeat').onclick = ()=>{ repeatRound += 1; startRepeat(false); };
+
+/* STT 진단 버튼 */
+$('btnMicTest').onclick = micPermissionTest;
+$('btnListSupport').onclick = checkSupport;
+
+/* 초기 화면 */
+show('home');
+</script>
+</body>
+</html>
